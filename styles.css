@@ -1,0 +1,138 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Noto Sans', sans-serif;
+    background: #f5f5f5;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+}
+
+.container {
+    width: 100%;
+    max-width: 600px;
+}
+
+.game-wrapper {
+    display: flex;
+    gap: 30px;
+    background: white;
+    padding: 30px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.sidebar {
+    width: 150px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+h1 {
+    font-size: 24px;
+    font-weight: 600;
+}
+
+.stats {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.stat {
+    display: flex;
+    justify-content: space-between;
+    font-size: 14px;
+}
+
+.label {
+    color: #666;
+}
+
+.value {
+    font-weight: 600;
+    color: #000;
+}
+
+.next-piece {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.next-piece .label {
+    font-size: 12px;
+    color: #666;
+    text-transform: uppercase;
+}
+
+#nextCanvas {
+    border: 2px solid #e0e0e0;
+    background: #fafafa;
+    border-radius: 4px;
+}
+
+.btn {
+    padding: 10px 16px;
+    background: #000;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background 0.2s;
+}
+
+.btn:hover:not(:disabled) {
+    background: #333;
+}
+
+.btn:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+}
+
+.controls {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 12px;
+    color: #666;
+    margin-top: 10px;
+}
+
+.control {
+    line-height: 1.4;
+}
+
+#gameCanvas {
+    border: 2px solid #000;
+    background: #fff;
+    image-rendering: pixelated;
+}
+
+@media (max-width: 600px) {
+    .game-wrapper {
+        flex-direction: column;
+        gap: 20px;
+        padding: 20px;
+    }
+
+    .sidebar {
+        width: 100%;
+    }
+
+    #gameCanvas {
+        max-width: 100%;
+        height: auto;
+    }
+}
+
