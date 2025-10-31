@@ -33,6 +33,7 @@ let level = 1;
 let gameRunning = false;
 let gamePaused = false;
 let demoMode = false;
+let trainingMode = false;
 let baseDropSpeed = 1000;
 let dropSpeed = 1000;
 let lastDropTime = 0;
@@ -40,6 +41,28 @@ let lastMoveTime = 0;
 const MOVE_DELAY = 100;
 let nextPiece = null;
 let aiTarget = null;
+
+// Training mode statistics
+let trainingStats = {
+    gamesPlayed: 0,
+    bestScore: 0,
+    totalScore: 0,
+    totalLines: 0,
+    scores: []
+};
+
+// AI learning weights (adaptive based on performance)
+let aiWeights = {
+    lineClear: 8000,
+    maxHeight: 80,
+    holes: 700,
+    bumpiness: 150,
+    wellDepth: 50,
+    transitions: 30,
+    rowFill: 20,
+    centerDist: 10,
+    nextPieceLookahead: 0.4
+};
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
@@ -53,15 +76,22 @@ const startBtn = document.getElementById('startBtn');
 const pauseBtn = document.getElementById('pauseBtn');
 const stopBtn = document.getElementById('stopBtn');
 const demoBtn = document.getElementById('demoBtn');
+const trainingBtn = document.getElementById('trainingBtn');
 const widthInput = document.getElementById('widthInput');
 const heightInput = document.getElementById('heightInput');
 const speedInput = document.getElementById('speedInput');
 const speedValue = document.getElementById('speedValue');
+const trainingStatsEl = document.getElementById('trainingStats');
+const trainingGamesEl = document.getElementById('trainingGames');
+const trainingBestEl = document.getElementById('trainingBest');
+const trainingAvgEl = document.getElementById('trainingAvg');
+const trainingLinesEl = document.getElementById('trainingLines');
 
 startBtn.addEventListener('click', startGame);
 pauseBtn.addEventListener('click', togglePause);
 stopBtn.addEventListener('click', stopGame);
 demoBtn.addEventListener('click', startDemo);
+trainingBtn.addEventListener('click', startTraining);
 widthInput.addEventListener('change', updateDimensions);
 heightInput.addEventListener('change', updateDimensions);
 speedInput.addEventListener('input', updateSpeed);
@@ -98,12 +128,17 @@ function resizeCanvas() {
 }
 
 function stopGame() {
+    const wasTraining = trainingMode;
     gameRunning = false;
     gamePaused = false;
+    trainingMode = false;
+    demoMode = false;
+    
     startBtn.disabled = false;
     pauseBtn.disabled = true;
     stopBtn.disabled = true;
     demoBtn.disabled = false;
+    trainingBtn.disabled = false;
     widthInput.disabled = false;
     heightInput.disabled = false;
     speedInput.disabled = false;
@@ -115,6 +150,11 @@ function stopGame() {
     score = 0;
     lines = 0;
     level = 1;
+    
+    if (wasTraining) {
+        trainingStatsEl.style.display = 'none';
+    }
+    
     updateUI();
     draw();
 }
@@ -144,6 +184,7 @@ function startGame() {
     pauseBtn.disabled = false;
     stopBtn.disabled = false;
     demoBtn.disabled = true;
+    trainingBtn.disabled = true;
     widthInput.disabled = true;
     heightInput.disabled = true;
     speedInput.disabled = true;
@@ -170,6 +211,7 @@ function startDemo() {
     gameRunning = true;
     gamePaused = false;
     demoMode = true;
+    trainingMode = false;
     nextPiece = null;
     aiTarget = null;
     lastDropTime = Date.now();
@@ -179,6 +221,62 @@ function startDemo() {
     pauseBtn.disabled = false;
     stopBtn.disabled = false;
     demoBtn.disabled = true;
+    trainingBtn.disabled = true;
+    widthInput.disabled = true;
+    heightInput.disabled = true;
+    speedInput.disabled = true;
+    
+    updateUI();
+    spawnNewPiece();
+    gameLoop();
+}
+
+function startTraining() {
+    // Initialize training stats
+    trainingStats = {
+        gamesPlayed: 0,
+        bestScore: 0,
+        totalScore: 0,
+        totalLines: 0,
+        scores: []
+    };
+    
+    // Show training stats
+    trainingStatsEl.style.display = 'flex';
+    updateTrainingStats();
+    
+    // Start first game
+    startTrainingGame();
+}
+
+function startTrainingGame() {
+    // Update dimensions from inputs if changed
+    const newCols = parseInt(widthInput.value) || 10;
+    const newRows = parseInt(heightInput.value) || 20;
+    if (newCols >= 6 && newCols <= 20) COLS = newCols;
+    if (newRows >= 10 && newRows <= 40) ROWS = newRows;
+    
+    resizeCanvas();
+    board = Array(ROWS).fill().map(() => Array(COLS).fill(0));
+    score = 0;
+    lines = 0;
+    level = 1;
+    baseDropSpeed = 800;
+    dropSpeed = baseDropSpeed / speedMultiplier;
+    gameRunning = true;
+    gamePaused = false;
+    demoMode = true;
+    trainingMode = true;
+    nextPiece = null;
+    aiTarget = null;
+    lastDropTime = Date.now();
+    lastMoveTime = Date.now();
+    
+    startBtn.disabled = true;
+    pauseBtn.disabled = false;
+    stopBtn.disabled = false;
+    demoBtn.disabled = true;
+    trainingBtn.disabled = true;
     widthInput.disabled = true;
     heightInput.disabled = true;
     speedInput.disabled = true;
@@ -319,16 +417,97 @@ function clearLines() {
 }
 
 function endGame() {
-    gameRunning = false;
-    startBtn.disabled = false;
-    pauseBtn.disabled = true;
-    stopBtn.disabled = true;
-    demoBtn.disabled = false;
-    widthInput.disabled = false;
-    heightInput.disabled = false;
-    speedInput.disabled = false;
-    pauseBtn.textContent = 'Пауза';
-    alert(`Игра окончена! Очки: ${score}`);
+    const finalScore = score;
+    const finalLines = lines;
+    
+    if (trainingMode) {
+        // Stop current game
+        gameRunning = false;
+        
+        // Record training statistics
+        trainingStats.gamesPlayed++;
+        trainingStats.totalScore += finalScore;
+        trainingStats.totalLines += finalLines;
+        trainingStats.scores.push(finalScore);
+        
+        if (finalScore > trainingStats.bestScore) {
+            trainingStats.bestScore = finalScore;
+        }
+        
+        // Keep only last 100 scores for rolling average
+        if (trainingStats.scores.length > 100) {
+            trainingStats.scores.shift();
+        }
+        
+        // Learn from performance
+        learnFromGame(finalScore, finalLines);
+        
+        // Update training stats display
+        updateTrainingStats();
+        
+        // Auto-restart after a short delay (only if still in training mode and not paused)
+        setTimeout(() => {
+            if (trainingMode && !gamePaused) {
+                startTrainingGame();
+            }
+        }, 500);
+    } else {
+        gameRunning = false;
+        startBtn.disabled = false;
+        pauseBtn.disabled = true;
+        stopBtn.disabled = true;
+        demoBtn.disabled = false;
+        trainingBtn.disabled = false;
+        widthInput.disabled = false;
+        heightInput.disabled = false;
+        speedInput.disabled = false;
+        pauseBtn.textContent = 'Пауза';
+        alert(`Игра окончена! Очки: ${finalScore}`);
+    }
+}
+
+function updateTrainingStats() {
+    trainingGamesEl.textContent = trainingStats.gamesPlayed;
+    trainingBestEl.textContent = trainingStats.bestScore;
+    
+    const avgScore = trainingStats.gamesPlayed > 0 
+        ? Math.floor(trainingStats.totalScore / trainingStats.gamesPlayed)
+        : 0;
+    trainingAvgEl.textContent = avgScore;
+    trainingLinesEl.textContent = trainingStats.totalLines;
+}
+
+function learnFromGame(finalScore, finalLines) {
+    // Simple learning mechanism: adjust weights based on performance
+    const recentAvg = trainingStats.scores.length > 0
+        ? trainingStats.scores.reduce((a, b) => a + b, 0) / trainingStats.scores.length
+        : finalScore;
+    const previousAvg = trainingStats.gamesPlayed > 1
+        ? (trainingStats.totalScore - finalScore) / (trainingStats.gamesPlayed - 1)
+        : finalScore;
+    
+    // If performance improved, keep current weights, otherwise adjust
+    const improvement = recentAvg - previousAvg;
+    const learningRate = 0.05;
+    
+    if (improvement < 0 && trainingStats.gamesPlayed > 10) {
+        // Performance declined, adjust weights slightly
+        // Increase emphasis on line clears and reducing holes
+        aiWeights.lineClear = Math.min(10000, aiWeights.lineClear * (1 + learningRate));
+        aiWeights.holes = Math.min(1000, aiWeights.holes * (1 + learningRate * 0.5));
+        
+        // Decrease emphasis on less critical factors
+        aiWeights.rowFill = Math.max(10, aiWeights.rowFill * (1 - learningRate * 0.3));
+        aiWeights.centerDist = Math.max(5, aiWeights.centerDist * (1 - learningRate * 0.5));
+    } else if (improvement > 0 && trainingStats.gamesPlayed > 5) {
+        // Performance improved, fine-tune weights
+        aiWeights.nextPieceLookahead = Math.min(0.6, aiWeights.nextPieceLookahead * (1 + learningRate * 0.2));
+    }
+    
+    // Ensure weights stay within reasonable bounds
+    aiWeights.lineClear = Math.max(5000, Math.min(12000, aiWeights.lineClear));
+    aiWeights.holes = Math.max(500, Math.min(1000, aiWeights.holes));
+    aiWeights.bumpiness = Math.max(100, Math.min(200, aiWeights.bumpiness));
 }
 
 function gameLoop() {
@@ -421,14 +600,14 @@ function findBestMove() {
             
             let score = evaluateBoardImproved(testBoard);
             
-            // Look ahead: evaluate next piece placement
+            // Look ahead: evaluate next piece placement - uses adaptive weight
             if (nextPiece) {
-                score += evaluateNextPiecePlacement(testBoard, nextPiece) * 0.4;
+                score += evaluateNextPiecePlacement(testBoard, nextPiece) * aiWeights.nextPieceLookahead;
             }
             
-            // Prefer positions closer to center
+            // Prefer positions closer to center - uses adaptive weight
             const centerDist = Math.abs(x - Math.floor(COLS / 2));
-            score -= centerDist * 10;
+            score -= centerDist * aiWeights.centerDist;
             
             if (score > best.score) {
                 best = { x, rotation, score };
@@ -451,42 +630,42 @@ function placeTemplate(tb, piece, x, y) {
 function evaluateBoardImproved(tb) {
     let score = 0;
     
-    // 1. Reward line clears (highest priority)
+    // 1. Reward line clears (highest priority) - uses adaptive weight
     let linesToClear = 0;
     for (let r = 0; r < ROWS; r++) {
         if (tb[r].every(cell => cell !== 0)) {
             linesToClear++;
         }
     }
-    score += linesToClear * 8000;
+    score += linesToClear * aiWeights.lineClear;
     
     // 2. Calculate column heights
     const heights = getColumnHeights(tb);
     const maxHeight = Math.max(...heights);
     const avgHeight = heights.reduce((a, b) => a + b, 0) / heights.length;
     
-    // 3. Minimize max height (avoid stack overflow)
-    score -= maxHeight * 80;
+    // 3. Minimize max height (avoid stack overflow) - uses adaptive weight
+    score -= maxHeight * aiWeights.maxHeight;
     
-    // 4. Penalize holes heavily
+    // 4. Penalize holes heavily - uses adaptive weight
     const holes = countHoles(tb, heights);
-    score -= holes * 700;
+    score -= holes * aiWeights.holes;
     
-    // 5. Penalize bumpiness (prefer flat surfaces)
+    // 5. Penalize bumpiness (prefer flat surfaces) - uses adaptive weight
     const bumpiness = calculateBumpiness(heights);
-    score -= bumpiness * 150;
+    score -= bumpiness * aiWeights.bumpiness;
     
-    // 6. Reward well depth (deep wells are good for I-pieces)
+    // 6. Reward well depth (deep wells are good for I-pieces) - uses adaptive weight
     const wellDepth = calculateWellDepth(tb, heights);
-    score += wellDepth * 50;
+    score += wellDepth * aiWeights.wellDepth;
     
-    // 7. Penalize column transitions (prefer smooth transitions)
+    // 7. Penalize column transitions (prefer smooth transitions) - uses adaptive weight
     const transitions = countColumnTransitions(tb);
-    score -= transitions * 30;
+    score -= transitions * aiWeights.transitions;
     
-    // 8. Reward filling complete rows (even if not full)
+    // 8. Reward filling complete rows (even if not full) - uses adaptive weight
     const rowFill = calculateRowFillPercentage(tb);
-    score += rowFill * 20;
+    score += rowFill * aiWeights.rowFill;
     
     return score;
 }

@@ -25,6 +25,25 @@
                         <span class="value" id="level">1</span>
                     </div>
                 </div>
+                <div class="training-stats" id="trainingStats" style="display: none;">
+                    <div class="settings-title">Статистика тренировки</div>
+                    <div class="stat">
+                        <span class="label">Игр:</span>
+                        <span class="value" id="trainingGames">0</span>
+                    </div>
+                    <div class="stat">
+                        <span class="label">Лучший:</span>
+                        <span class="value" id="trainingBest">0</span>
+                    </div>
+                    <div class="stat">
+                        <span class="label">Среднее:</span>
+                        <span class="value" id="trainingAvg">0</span>
+                    </div>
+                    <div class="stat">
+                        <span class="label">Всего линий:</span>
+                        <span class="value" id="trainingLines">0</span>
+                    </div>
+                </div>
                 <div class="next-piece">
                     <div class="label">Следующая:</div>
                     <canvas id="nextCanvas" width="120" height="120"></canvas>
@@ -33,6 +52,7 @@
                 <button id="pauseBtn" class="btn" disabled>Пауза</button>
                 <button id="stopBtn" class="btn" disabled>Остановить</button>
                 <button id="demoBtn" class="btn">Демо</button>
+                <button id="trainingBtn" class="btn btn-training">Тренировка</button>
                 <div class="settings">
                     <div class="settings-title">Настройки</div>
                     <div class="setting-item">
