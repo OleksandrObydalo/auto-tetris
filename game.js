@@ -1,6 +1,7 @@
-const COLS = 10;
-const ROWS = 20;
+let COLS = 10;
+let ROWS = 20;
 const BLOCK_SIZE = 30;
+let speedMultiplier = 1.0;
 
 const COLORS = [
     '#00f0f1',
@@ -32,6 +33,7 @@ let level = 1;
 let gameRunning = false;
 let gamePaused = false;
 let demoMode = false;
+let baseDropSpeed = 1000;
 let dropSpeed = 1000;
 let lastDropTime = 0;
 let lastMoveTime = 0;
@@ -49,19 +51,88 @@ const linesEl = document.getElementById('lines');
 const levelEl = document.getElementById('level');
 const startBtn = document.getElementById('startBtn');
 const pauseBtn = document.getElementById('pauseBtn');
+const stopBtn = document.getElementById('stopBtn');
 const demoBtn = document.getElementById('demoBtn');
+const widthInput = document.getElementById('widthInput');
+const heightInput = document.getElementById('heightInput');
+const speedInput = document.getElementById('speedInput');
+const speedValue = document.getElementById('speedValue');
 
 startBtn.addEventListener('click', startGame);
 pauseBtn.addEventListener('click', togglePause);
+stopBtn.addEventListener('click', stopGame);
 demoBtn.addEventListener('click', startDemo);
+widthInput.addEventListener('change', updateDimensions);
+heightInput.addEventListener('change', updateDimensions);
+speedInput.addEventListener('input', updateSpeed);
 document.addEventListener('keydown', handleKeyPress);
 
+function updateDimensions() {
+    if (!gameRunning) {
+        const newCols = parseInt(widthInput.value) || 10;
+        const newRows = parseInt(heightInput.value) || 20;
+        
+        if (newCols >= 6 && newCols <= 20 && newRows >= 10 && newRows <= 40) {
+            COLS = newCols;
+            ROWS = newRows;
+            resizeCanvas();
+        }
+    }
+}
+
+function updateSpeed() {
+    speedMultiplier = parseFloat(speedInput.value);
+    speedValue.textContent = speedMultiplier.toFixed(2) + 'x';
+    
+    if (gameRunning) {
+        dropSpeed = Math.max(50, baseDropSpeed / speedMultiplier);
+    }
+}
+
+function resizeCanvas() {
+    canvas.width = COLS * BLOCK_SIZE;
+    canvas.height = ROWS * BLOCK_SIZE;
+    if (gameRunning) {
+        draw();
+    }
+}
+
+function stopGame() {
+    gameRunning = false;
+    gamePaused = false;
+    startBtn.disabled = false;
+    pauseBtn.disabled = true;
+    stopBtn.disabled = true;
+    demoBtn.disabled = false;
+    widthInput.disabled = false;
+    heightInput.disabled = false;
+    speedInput.disabled = false;
+    pauseBtn.textContent = 'Пауза';
+    
+    // Reset board
+    board = Array(ROWS).fill().map(() => Array(COLS).fill(0));
+    currentPiece = null;
+    score = 0;
+    lines = 0;
+    level = 1;
+    updateUI();
+    draw();
+}
+
 function startGame() {
+    // Update dimensions from inputs if changed
+    const newCols = parseInt(widthInput.value) || 10;
+    const newRows = parseInt(heightInput.value) || 20;
+    if (newCols >= 6 && newCols <= 20) COLS = newCols;
+    if (newRows >= 10 && newRows <= 40) ROWS = newRows;
+    
+    resizeCanvas();
     board = Array(ROWS).fill().map(() => Array(COLS).fill(0));
     score = 0;
     lines = 0;
     level = 1;
-    dropSpeed = 1000;
+    baseDropSpeed = 1000;
+    dropSpeed = baseDropSpeed / speedMultiplier;
     gameRunning = true;
     gamePaused = false;
     demoMode = false;
@@ -71,7 +142,11 @@ function startGame() {
     
     startBtn.disabled = true;
     pauseBtn.disabled = false;
+    stopBtn.disabled = false;
     demoBtn.disabled = true;
+    widthInput.disabled = true;
+    heightInput.disabled = true;
+    speedInput.disabled = true;
     
     updateUI();
     spawnNewPiece();
@@ -79,11 +154,19 @@ function startGame() {
 }
 
 function startDemo() {
+    // Update dimensions from inputs if changed
+    const newCols = parseInt(widthInput.value) || 10;
+    const newRows = parseInt(heightInput.value) || 20;
+    if (newCols >= 6 && newCols <= 20) COLS = newCols;
+    if (newRows >= 10 && newRows <= 40) ROWS = newRows;
+    
+    resizeCanvas();
     board = Array(ROWS).fill().map(() => Array(COLS).fill(0));
     score = 0;
     lines = 0;
     level = 1;
-    dropSpeed = 800;
+    baseDropSpeed = 800;
+    dropSpeed = baseDropSpeed / speedMultiplier;
     gameRunning = true;
     gamePaused = false;
     demoMode = true;
@@ -94,7 +177,11 @@ function startDemo() {
     
     startBtn.disabled = true;
     pauseBtn.disabled = false;
+    stopBtn.disabled = false;
     demoBtn.disabled = true;
+    widthInput.disabled = true;
+    heightInput.disabled = true;
+    speedInput.disabled = true;
     
     updateUI();
     spawnNewPiece();
@@ -226,7 +313,8 @@ function clearLines() {
         lines += clearedLines;
         score += clearedLines * clearedLines * 100;
         level = Math.floor(lines / 10) + 1;
-        dropSpeed = Math.max(100, 1000 - (level - 1) * 50);
+        baseDropSpeed = Math.max(100, 1000 - (level - 1) * 50);
+        dropSpeed = Math.max(50, baseDropSpeed / speedMultiplier);
     }
 }
 
@@ -234,6 +322,12 @@ function endGame() {
     gameRunning = false;
     startBtn.disabled = false;
     pauseBtn.disabled = true;
+    stopBtn.disabled = true;
+    demoBtn.disabled = false;
+    widthInput.disabled = false;
+    heightInput.disabled = false;
+    speedInput.disabled = false;
+    pauseBtn.textContent = 'Пауза';
     alert(`Игра окончена! Очки: ${score}`);
 }
 
@@ -264,30 +358,86 @@ function gameLoop() {
 }
 
 function makeDemoMove() {
-    if (!aiTarget) aiTarget = findBestMove();
-    if (!aiTarget) return;
-    if (aiTarget.rotation > 0) { rotatePiece(); aiTarget.rotation--; return; }
-    if (aiTarget.x < currentX && canMove(currentPiece.template, currentX - 1, currentY)) { currentX--; return; }
-    if (aiTarget.x > currentX && canMove(currentPiece.template, currentX + 1, currentY)) { currentX++; return; }
-    if (canMove(currentPiece.template, currentX, currentY + 1)) currentY++; // soft drop
+    if (!aiTarget) {
+        aiTarget = findBestMove();
+        if (!aiTarget) return;
+    }
+    
+    // Handle rotation
+    if (aiTarget.rotation > 0) {
+        const rotated = rotateMatrix(currentPiece.template);
+        if (canMove(rotated, currentX, currentY)) {
+            currentPiece.template = rotated;
+            aiTarget.rotation--;
+        }
+        return;
+    }
+    
+    // Handle horizontal movement
+    if (aiTarget.x < currentX && canMove(currentPiece.template, currentX - 1, currentY)) {
+        currentX--;
+        return;
+    }
+    if (aiTarget.x > currentX && canMove(currentPiece.template, currentX + 1, currentY)) {
+        currentX++;
+        return;
+    }
+    
+    // If in position, soft drop
+    if (canMove(currentPiece.template, currentX, currentY + 1)) {
+        currentY++;
+    } else {
+        // Reset target when piece is placed
+        aiTarget = null;
+    }
 }
 
 function findBestMove() {
+    if (!currentPiece) return null;
+    
     let best = { x: currentX, rotation: 0, score: -Infinity };
     let testPiece = JSON.parse(JSON.stringify(currentPiece.template));
+    
+    // Try all rotations (up to 4 unique rotations)
+    const uniqueRotations = new Set();
     for (let rotation = 0; rotation < 4; rotation++) {
+        const rotationKey = JSON.stringify(testPiece);
+        if (uniqueRotations.has(rotationKey)) break;
+        uniqueRotations.add(rotationKey);
+        
+        // Try all possible x positions
         for (let x = -2; x < COLS + 2; x++) {
             if (!canMove(testPiece, x, currentY)) continue;
+            
+            // Drop piece as far as possible
             let y = currentY;
-            while (canMove(testPiece, x, y + 1)) y++;
-            const tb = board.map(r => [...r]);
-            placeTemplate(tb, testPiece, x, y);
-            let score = evaluateBoard(tb);
-            if (nextPiece) score += bestNextOnBoard(tb, nextPiece) * 0.5;
-            if (score > best.score) best = { x, rotation, score };
+            while (canMove(testPiece, x, y + 1)) {
+                y++;
+            }
+            
+            // Evaluate this position
+            const testBoard = board.map(r => [...r]);
+            placeTemplate(testBoard, testPiece, x, y);
+            
+            let score = evaluateBoardImproved(testBoard);
+            
+            // Look ahead: evaluate next piece placement
+            if (nextPiece) {
+                score += evaluateNextPiecePlacement(testBoard, nextPiece) * 0.4;
+            }
+            
+            // Prefer positions closer to center
+            const centerDist = Math.abs(x - Math.floor(COLS / 2));
+            score -= centerDist * 10;
+            
+            if (score > best.score) {
+                best = { x, rotation, score };
+            }
         }
+        
         testPiece = rotateMatrix(testPiece);
     }
+    
     return best;
 }
 
@@ -298,32 +448,119 @@ function placeTemplate(tb, piece, x, y) {
                 tb[y + r][x + c] = 1;
 }
 
-function evaluateBoard(tb) {
-    let score = 0, linesToClear = 0;
-    for (let r = 0; r < ROWS; r++) if (tb[r].every(cell => cell !== 0)) linesToClear++;
-    score += linesToClear * 5000;
+function evaluateBoardImproved(tb) {
+    let score = 0;
+    
+    // 1. Reward line clears (highest priority)
+    let linesToClear = 0;
+    for (let r = 0; r < ROWS; r++) {
+        if (tb[r].every(cell => cell !== 0)) {
+            linesToClear++;
+        }
+    }
+    score += linesToClear * 8000;
+    
+    // 2. Calculate column heights
     const heights = getColumnHeights(tb);
-    score -= Math.max(...heights) * 50;
-    score -= countHoles(tb, heights) * 500;
-    score -= calculateBumpiness(heights) * 100;
+    const maxHeight = Math.max(...heights);
+    const avgHeight = heights.reduce((a, b) => a + b, 0) / heights.length;
+    
+    // 3. Minimize max height (avoid stack overflow)
+    score -= maxHeight * 80;
+    
+    // 4. Penalize holes heavily
+    const holes = countHoles(tb, heights);
+    score -= holes * 700;
+    
+    // 5. Penalize bumpiness (prefer flat surfaces)
+    const bumpiness = calculateBumpiness(heights);
+    score -= bumpiness * 150;
+    
+    // 6. Reward well depth (deep wells are good for I-pieces)
+    const wellDepth = calculateWellDepth(tb, heights);
+    score += wellDepth * 50;
+    
+    // 7. Penalize column transitions (prefer smooth transitions)
+    const transitions = countColumnTransitions(tb);
+    score -= transitions * 30;
+    
+    // 8. Reward filling complete rows (even if not full)
+    const rowFill = calculateRowFillPercentage(tb);
+    score += rowFill * 20;
+    
     return score;
 }
 
-function bestNextOnBoard(tb, nextTpl) {
-    let best = -Infinity;
-    let tpl = JSON.parse(JSON.stringify(nextTpl));
-    for (let rot = 0; rot < 4; rot++) {
-        for (let x = -2; x < COLS + 2; x++) {
-            let y = 0; if (!canMove(tpl, x, y)) continue;
-            while (canMove(tpl, x, y + 1)) y++;
-            const t2 = tb.map(r => [...r]);
-            placeTemplate(t2, tpl, x, y);
-            best = Math.max(best, evaluateBoard(t2));
+function calculateWellDepth(tb, heights) {
+    let wellDepth = 0;
+    for (let col = 0; col < COLS - 1; col++) {
+        const diff = heights[col] - heights[col + 1];
+        if (Math.abs(diff) >= 2) {
+            wellDepth += Math.abs(diff) - 1;
         }
-        tpl = rotateMatrix(tpl);
     }
-    return best;
+    return wellDepth;
 }
+
+function countColumnTransitions(tb) {
+    let transitions = 0;
+    for (let col = 0; col < COLS; col++) {
+        let last = false;
+        for (let row = 0; row < ROWS; row++) {
+            const current = tb[row][col] !== 0;
+            if (last !== current && row > 0) {
+                transitions++;
+            }
+            last = current;
+        }
+    }
+    return transitions;
+}
+
+function calculateRowFillPercentage(tb) {
+    let totalFill = 0;
+    for (let row = 0; row < ROWS; row++) {
+        const filled = tb[row].filter(cell => cell !== 0).length;
+        totalFill += filled / COLS;
+    }
+    return totalFill;
+}
+
+function evaluateNextPiecePlacement(testBoard, nextTemplate) {
+    let bestScore = -Infinity;
+    let testTemplate = JSON.parse(JSON.stringify(nextTemplate));
+    
+    const uniqueRotations = new Set();
+    for (let rot = 0; rot < 4; rot++) {
+        const rotationKey = JSON.stringify(testTemplate);
+        if (uniqueRotations.has(rotationKey)) break;
+        uniqueRotations.add(rotationKey);
+        
+        for (let x = -2; x < COLS + 2; x++) {
+            let y = 0;
+            if (!canMove(testTemplate, x, y)) continue;
+            
+            while (canMove(testTemplate, x, y + 1)) {
+                y++;
+            }
+            
+            const t2 = testBoard.map(r => [...r]);
+            placeTemplate(t2, testTemplate, x, y);
+            const score = evaluateBoardImproved(t2);
+            bestScore = Math.max(bestScore, score);
+        }
+        
+        testTemplate = rotateMatrix(testTemplate);
+    }
+    
+    return bestScore;
+}
+
+// Initialize canvas size on load
+window.addEventListener('DOMContentLoaded', () => {
+    resizeCanvas();
+    updateSpeed(); // Initialize speed display
+});
 
 function evaluateMove(piece, x, y) {
     // Create a copy of the board to simulate piece placement
