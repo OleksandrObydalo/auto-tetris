@@ -1,197 +1,336 @@
+// ============================================
+// ОСНОВНЫЕ КОНСТАНТЫ И ПЕРЕМЕННЫЕ ИГРЫ
+// ============================================
+
+// Размеры игрового поля
+// COLS - количество столбцов (ширина поля)
+// ROWS - количество строк (высота поля)
+// BLOCK_SIZE - размер одного блока в пикселях
 let COLS = 10;
 let ROWS = 20;
 const BLOCK_SIZE = 30;
+
+// Множитель скорости падения фигур (1.0 = нормальная скорость)
 let speedMultiplier = 1.0;
 
+// Массив цветов для фигур (в формате HEX: #RRGGBB)
+// Каждая фигура получает случайный цвет из этого массива
 const COLORS = [
-    '#00f0f1',
-    '#0000ff',
-    '#f0a000',
-    '#00f000',
-    '#ff0000',
-    '#a000f0',
-    '#f0f000'
+    '#00f0f1', // Голубой
+    '#0000ff', // Синий
+    '#f0a000', // Оранжевый
+    '#00f000', // Зелёный
+    '#ff0000', // Красный
+    '#a000f0', // Фиолетовый
+    '#f0f000'  // Жёлтый
 ];
 
+// Шаблоны всех фигур Тетриса
+// Каждая фигура представлена двумерным массивом (матрицей)
+// 1 означает наличие блока, 0 - пустое место
+// Порядок: I, O, S, Z, L, J, T фигуры
 const PIECES = [
-    [[1, 1, 1, 1]],
-    [[1, 1], [1, 1]],
-    [[0, 1, 1], [1, 1, 0]],
-    [[1, 1, 0], [0, 1, 1]],
-    [[1, 0, 0], [1, 1, 1]],
-    [[0, 0, 1], [1, 1, 1]],
-    [[0, 1, 0], [1, 1, 1]]
+    [[1, 1, 1, 1]],                    // I-фигура (палка)
+    [[1, 1], [1, 1]],                   // O-фигура (квадрат)
+    [[0, 1, 1], [1, 1, 0]],             // S-фигура (зигзаг)
+    [[1, 1, 0], [0, 1, 1]],             // Z-фигура (обратный зигзаг)
+    [[1, 0, 0], [1, 1, 1]],             // L-фигура (буква Г)
+    [[0, 0, 1], [1, 1, 1]],             // J-фигура (обратная Г)
+    [[0, 1, 0], [1, 1, 1]]              // T-фигура (буква Т)
 ];
 
+// ============================================
+// СОСТОЯНИЕ ИГРЫ
+// ============================================
+
+// Игровое поле - двумерный массив ROWS x COLS
+// 0 = пустая клетка, число > 0 = цвет фигуры (индекс + 1)
 let board = Array(ROWS).fill().map(() => Array(COLS).fill(0));
+
+// Текущая падающая фигура (объект с шаблоном и цветом)
 let currentPiece = null;
-let currentX = 0;
-let currentY = 0;
-let score = 0;
-let lines = 0;
-let level = 1;
-let gameRunning = false;
-let gamePaused = false;
-let demoMode = false;
-let trainingMode = false;
-let baseDropSpeed = 1000;
+
+// Позиция текущей фигуры на поле (координаты левого верхнего угла)
+let currentX = 0;  // Столбец
+let currentY = 0;  // Строка
+
+// Статистика игры
+let score = 0;      // Очки игрока
+let lines = 0;      // Количество очищенных линий
+let level = 1;      // Текущий уровень (увеличивается каждые 10 линий)
+
+// Флаги состояния игры
+let gameRunning = false;   // Игра запущена?
+let gamePaused = false;    // Игра на паузе?
+let demoMode = false;      // Режим демонстрации (бот играет)?
+let trainingMode = false;  // Режим тренировки (автоматическое обучение)?
+
+// Скорость падения фигур (в миллисекундах)
+// baseDropSpeed - базовая скорость, зависит от уровня
+// dropSpeed - текущая скорость с учётом множителя
+let baseDropSpeed = 1000;  // 1000 мс = 1 секунда
 let dropSpeed = 1000;
+
+// Время последнего падения фигуры (для контроля скорости)
 let lastDropTime = 0;
+
+// Время последнего движения в демо-режиме
 let lastMoveTime = 0;
-const MOVE_DELAY = 100;
+const MOVE_DELAY = 100;  // Задержка между движениями бота (мс)
+
+// Следующая фигура (для предпросмотра)
 let nextPiece = null;
+
+// Целевая позиция для ИИ в демо-режиме (куда бот хочет поставить фигуру)
 let aiTarget = null;
 
-// Training mode statistics
+// ============================================
+// СТАТИСТИКА ТРЕНИРОВКИ
+// ============================================
+
+// Объект для хранения статистики во время тренировки ИИ
 let trainingStats = {
-    gamesPlayed: 0,
-    bestScore: 0,
-    totalScore: 0,
-    totalLines: 0,
-    scores: []
+    gamesPlayed: 0,    // Количество сыгранных игр
+    bestScore: 0,      // Лучший результат
+    totalScore: 0,     // Сумма всех очков (для расчёта среднего)
+    totalLines: 0,     // Общее количество очищенных линий
+    scores: []         // Массив последних 100 результатов
 };
 
-// AI learning weights (adaptive based on performance)
+// ============================================
+// ВЕСА ДЛЯ ОЦЕНКИ ПОЗИЦИЙ ИИ
+// ============================================
+
+// Эти числа определяют, насколько важны разные факторы при выборе хода
+// Чем больше число, тем важнее фактор
+// ИИ корректирует эти веса в процессе обучения
 let aiWeights = {
-    lineClear: 8000,
-    maxHeight: 80,
-    holes: 700,
-    bumpiness: 150,
-    wellDepth: 50,
-    transitions: 30,
-    rowFill: 20,
-    centerDist: 10,
-    nextPieceLookahead: 0.4
+    lineClear: 8000,        // Очистка линий (самый важный фактор!)
+    maxHeight: 80,          // Максимальная высота стопки (меньше = лучше)
+    holes: 700,             // Дыры в стопке (очень плохо)
+    bumpiness: 150,         // Неровность поверхности (гладкая поверхность лучше)
+    wellDepth: 50,          // Глубина "колодцев" (хорошо для I-фигур)
+    transitions: 30,        // Переходы между заполненными/пустыми клетками
+    rowFill: 20,            // Заполненность рядов (даже частично заполненные)
+    centerDist: 10,         // Расстояние от центра (ближе к центру лучше)
+    nextPieceLookahead: 0.4 // Насколько учитывать следующую фигуру (0.4 = 40%)
 };
 
+// ============================================
+// ПОЛУЧЕНИЕ ЭЛЕМЕНТОВ ИЗ HTML (DOM)
+// ============================================
+
+// Canvas - элемент HTML5 для рисования графики
+// gameCanvas - основное игровое поле
+// nextCanvas - маленькое поле для показа следующей фигуры
 const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
+const ctx = canvas.getContext('2d');  // Контекст для рисования (2D)
+
 const nextCanvas = document.getElementById('nextCanvas');
 const nextCtx = nextCanvas.getContext('2d');
 
-const scoreEl = document.getElementById('score');
-const linesEl = document.getElementById('lines');
-const levelEl = document.getElementById('level');
-const startBtn = document.getElementById('startBtn');
-const pauseBtn = document.getElementById('pauseBtn');
-const stopBtn = document.getElementById('stopBtn');
-const demoBtn = document.getElementById('demoBtn');
-const trainingBtn = document.getElementById('trainingBtn');
-const widthInput = document.getElementById('widthInput');
-const heightInput = document.getElementById('heightInput');
-const speedInput = document.getElementById('speedInput');
-const speedValue = document.getElementById('speedValue');
-const trainingStatsEl = document.getElementById('trainingStats');
-const trainingGamesEl = document.getElementById('trainingGames');
-const trainingBestEl = document.getElementById('trainingBest');
-const trainingAvgEl = document.getElementById('trainingAvg');
-const trainingLinesEl = document.getElementById('trainingLines');
+// Получаем ссылки на HTML-элементы для отображения статистики
+const scoreEl = document.getElementById('score');           // Элемент для очков
+const linesEl = document.getElementById('lines');           // Элемент для линий
+const levelEl = document.getElementById('level');           // Элемент для уровня
 
-startBtn.addEventListener('click', startGame);
-pauseBtn.addEventListener('click', togglePause);
-stopBtn.addEventListener('click', stopGame);
-demoBtn.addEventListener('click', startDemo);
-trainingBtn.addEventListener('click', startTraining);
-widthInput.addEventListener('change', updateDimensions);
-heightInput.addEventListener('change', updateDimensions);
-speedInput.addEventListener('input', updateSpeed);
-document.addEventListener('keydown', handleKeyPress);
+// Получаем ссылки на кнопки управления
+const startBtn = document.getElementById('startBtn');      // Кнопка "Начать"
+const pauseBtn = document.getElementById('pauseBtn');       // Кнопка "Пауза"
+const stopBtn = document.getElementById('stopBtn');        // Кнопка "Остановить"
+const demoBtn = document.getElementById('demoBtn');         // Кнопка "Демо"
+const trainingBtn = document.getElementById('trainingBtn');  // Кнопка "Тренировка"
 
+// Получаем ссылки на поля ввода настроек
+const widthInput = document.getElementById('widthInput');     // Поле ввода ширины
+const heightInput = document.getElementById('heightInput');  // Поле ввода высоты
+const speedInput = document.getElementById('speedInput');    // Слайдер скорости
+const speedValue = document.getElementById('speedValue');    // Отображение значения скорости
+
+// Получаем ссылки на элементы статистики тренировки
+const trainingStatsEl = document.getElementById('trainingStats');    // Контейнер статистики
+const trainingGamesEl = document.getElementById('trainingGames');    // Количество игр
+const trainingBestEl = document.getElementById('trainingBest');      // Лучший результат
+const trainingAvgEl = document.getElementById('trainingAvg');         // Средний результат
+const trainingLinesEl = document.getElementById('trainingLines');    // Всего линий
+
+// ============================================
+// НАСТРОЙКА ОБРАБОТЧИКОВ СОБЫТИЙ
+// ============================================
+
+// Привязываем функции к событиям (клики на кнопки, нажатия клавиш)
+// addEventListener('событие', функция) - слушатель событий
+startBtn.addEventListener('click', startGame);              // При клике на "Начать" → запуск игры
+pauseBtn.addEventListener('click', togglePause);             // При клике на "Пауза" → пауза/продолжение
+stopBtn.addEventListener('click', stopGame);                 // При клике на "Остановить" → остановка
+demoBtn.addEventListener('click', startDemo);               // При клике на "Демо" → демо-режим
+trainingBtn.addEventListener('click', startTraining);       // При клике на "Тренировка" → режим тренировки
+
+// Обработчики изменения настроек
+widthInput.addEventListener('change', updateDimensions);    // При изменении ширины → обновить размеры
+heightInput.addEventListener('change', updateDimensions);  // При изменении высоты → обновить размеры
+speedInput.addEventListener('input', updateSpeed);          // При изменении скорости → обновить скорость
+
+// Обработчик нажатий клавиш (для управления фигурой)
+document.addEventListener('keydown', handleKeyPress);        // При нажатии клавиши → обработка управления
+
+/**
+ * Обновляет размеры игрового поля на основе введённых пользователем значений
+ * Можно изменить размеры только когда игра не запущена
+ */
 function updateDimensions() {
+    // Проверяем, что игра не запущена (размеры нельзя менять во время игры)
     if (!gameRunning) {
+        // Получаем новые значения из полей ввода
+        // parseInt() - преобразует строку в число
+        // || 10 - если значение невалидно, используем 10 по умолчанию
         const newCols = parseInt(widthInput.value) || 10;
         const newRows = parseInt(heightInput.value) || 20;
         
+        // Проверяем, что значения в допустимых пределах
         if (newCols >= 6 && newCols <= 20 && newRows >= 10 && newRows <= 40) {
-            COLS = newCols;
-            ROWS = newRows;
-            resizeCanvas();
+            COLS = newCols;  // Обновляем ширину
+            ROWS = newRows;  // Обновляем высоту
+            resizeCanvas(); // Перерисовываем canvas под новый размер
         }
     }
 }
 
+/**
+ * Обновляет скорость игры на основе значения слайдера
+ * speedMultiplier: 0.25 = медленно, 1.0 = нормально, 3.0 = очень быстро
+ */
 function updateSpeed() {
+    // Получаем значение из слайдера (может быть дробным, поэтому parseFloat)
     speedMultiplier = parseFloat(speedInput.value);
+    
+    // Обновляем отображение скорости (toFixed(2) - округляем до 2 знаков)
     speedValue.textContent = speedMultiplier.toFixed(2) + 'x';
     
+    // Если игра запущена, сразу применяем новую скорость
     if (gameRunning) {
+        // Вычисляем новую скорость падения
+        // Чем больше множитель, тем меньше время падения (быстрее)
+        // Math.max(50, ...) - минимальная скорость 50 мс (очень быстро)
         dropSpeed = Math.max(50, baseDropSpeed / speedMultiplier);
     }
 }
 
+/**
+ * Изменяет размер canvas (игрового поля) в зависимости от размеров поля
+ * Canvas должен быть точно такого размера, чтобы вместить все клетки
+ */
 function resizeCanvas() {
+    // Устанавливаем ширину = количество столбцов * размер блока
     canvas.width = COLS * BLOCK_SIZE;
+    
+    // Устанавливаем высоту = количество строк * размер блока
     canvas.height = ROWS * BLOCK_SIZE;
+    
+    // Если игра запущена, перерисовываем поле
     if (gameRunning) {
         draw();
     }
 }
 
+/**
+ * Останавливает игру и сбрасывает все параметры
+ * Возвращает игру в начальное состояние
+ */
 function stopGame() {
+    // Запоминаем, был ли включён режим тренировки (чтобы скрыть статистику)
     const wasTraining = trainingMode;
-    gameRunning = false;
-    gamePaused = false;
-    trainingMode = false;
-    demoMode = false;
     
-    startBtn.disabled = false;
-    pauseBtn.disabled = true;
-    stopBtn.disabled = true;
-    demoBtn.disabled = false;
-    trainingBtn.disabled = false;
-    widthInput.disabled = false;
-    heightInput.disabled = false;
-    speedInput.disabled = false;
-    pauseBtn.textContent = 'Пауза';
+    // Сбрасываем все флаги состояния
+    gameRunning = false;   // Игра остановлена
+    gamePaused = false;    // Снимаем паузу
+    trainingMode = false;  // Выключаем режим тренировки
+    demoMode = false;      // Выключаем демо-режим
     
-    // Reset board
+    // Включаем/выключаем кнопки в зависимости от состояния
+    startBtn.disabled = false;    // Можно начать новую игру
+    pauseBtn.disabled = true;     // Пауза недоступна (игра остановлена)
+    stopBtn.disabled = true;       // Остановка недоступна (уже остановлено)
+    demoBtn.disabled = false;      // Можно запустить демо
+    trainingBtn.disabled = false;  // Можно запустить тренировку
+    widthInput.disabled = false;   // Можно изменить ширину
+    heightInput.disabled = false;  // Можно изменить высоту
+    speedInput.disabled = false;   // Можно изменить скорость
+    pauseBtn.textContent = 'Пауза'; // Возвращаем текст кнопки
+    
+    // Очищаем игровое поле (создаём новый пустой массив)
     board = Array(ROWS).fill().map(() => Array(COLS).fill(0));
-    currentPiece = null;
-    score = 0;
-    lines = 0;
-    level = 1;
+    currentPiece = null;  // Удаляем текущую фигуру
+    score = 0;            // Сбрасываем очки
+    lines = 0;            // Сбрасываем линии
+    level = 1;            // Возвращаем уровень в 1
     
+    // Если была тренировка, скрываем панель статистики
     if (wasTraining) {
         trainingStatsEl.style.display = 'none';
     }
     
+    // Обновляем интерфейс и перерисовываем поле
     updateUI();
     draw();
 }
 
+/**
+ * Запускает новую игру
+ * Инициализирует все параметры и начинает игровой цикл
+ */
 function startGame() {
-    // Update dimensions from inputs if changed
+    // Обновляем размеры поля из полей ввода (если были изменены)
     const newCols = parseInt(widthInput.value) || 10;
     const newRows = parseInt(heightInput.value) || 20;
+    
+    // Проверяем валидность и обновляем размеры
     if (newCols >= 6 && newCols <= 20) COLS = newCols;
     if (newRows >= 10 && newRows <= 40) ROWS = newRows;
     
+    // Подстраиваем размер canvas под новые размеры поля
     resizeCanvas();
+    
+    // Создаём новое пустое игровое поле
+    // Array(ROWS).fill() - создаём массив из ROWS элементов
+    // .map(() => Array(COLS).fill(0)) - каждый элемент = массив из COLS нулей
     board = Array(ROWS).fill().map(() => Array(COLS).fill(0));
+    
+    // Сбрасываем статистику
     score = 0;
     lines = 0;
     level = 1;
-    baseDropSpeed = 1000;
-    dropSpeed = baseDropSpeed / speedMultiplier;
-    gameRunning = true;
-    gamePaused = false;
-    demoMode = false;
-    nextPiece = null;
-    aiTarget = null;
-    lastDropTime = Date.now();
     
-    startBtn.disabled = true;
-    pauseBtn.disabled = false;
-    stopBtn.disabled = false;
-    demoBtn.disabled = true;
-    trainingBtn.disabled = true;
-    widthInput.disabled = true;
+    // Устанавливаем начальную скорость падения
+    baseDropSpeed = 1000;  // Базовая скорость 1 секунда
+    dropSpeed = baseDropSpeed / speedMultiplier;  // Учитываем множитель скорости
+    
+    // Устанавливаем флаги состояния
+    gameRunning = true;   // Игра запущена
+    gamePaused = false;   // Не на паузе
+    demoMode = false;     // Не демо-режим (играет человек)
+    
+    // Очищаем временные данные
+    nextPiece = null;     // Нет следующей фигуры
+    aiTarget = null;      // Нет цели для ИИ
+    
+    // Запоминаем текущее время для отсчёта падения фигур
+    lastDropTime = Date.now();  // Date.now() возвращает текущее время в миллисекундах
+    
+    // Обновляем состояние кнопок
+    startBtn.disabled = true;     // Нельзя начать новую игру (уже запущена)
+    pauseBtn.disabled = false;     // Можно поставить на паузу
+    stopBtn.disabled = false;      // Можно остановить
+    demoBtn.disabled = true;       // Нельзя запустить демо (игра уже запущена)
+    trainingBtn.disabled = true;   // Нельзя запустить тренировку
+    widthInput.disabled = true;   // Нельзя изменить размеры во время игры
     heightInput.disabled = true;
     speedInput.disabled = true;
     
+    // Обновляем отображение статистики и рисуем начальное состояние
     updateUI();
-    spawnNewPiece();
-    gameLoop();
+    spawnNewPiece();  // Появляется первая фигура
+    gameLoop();       // Запускаем игровой цикл (бесконечный цикл обновления)
 }
 
 function startDemo() {
@@ -291,65 +430,126 @@ function togglePause() {
     pauseBtn.textContent = gamePaused ? 'Продолжить' : 'Пауза';
 }
 
+/**
+ * Создаёт новую фигуру и размещает её в верхней части поля
+ * Если следующая фигура уже была подготовлена - использует её
+ * Иначе выбирает случайную фигуру из набора
+ */
 function spawnNewPiece() {
+    // Если есть подготовленная следующая фигура - используем её
+    // Иначе выбираем случайную фигуру из массива PIECES
+    // Math.random() - случайное число от 0 до 1
+    // Math.floor(...) - округление вниз до целого
+    // PIECES.length - количество доступных фигур
     const pieceTemplate = nextPiece || PIECES[Math.floor(Math.random() * PIECES.length)];
-    currentPiece = {
-        template: pieceTemplate,
-        colorIndex: Math.floor(Math.random() * COLORS.length)
-    };
-    nextPiece = PIECES[Math.floor(Math.random() * PIECES.length)];
-    currentX = Math.floor(COLS / 2 - currentPiece.template[0].length / 2);
-    currentY = 0;
     
+    // Создаём объект текущей фигуры с шаблоном и случайным цветом
+    currentPiece = {
+        template: pieceTemplate,  // Шаблон фигуры (двумерный массив)
+        colorIndex: Math.floor(Math.random() * COLORS.length)  // Индекс цвета
+    };
+    
+    // Генерируем следующую фигуру для предпросмотра
+    nextPiece = PIECES[Math.floor(Math.random() * PIECES.length)];
+    
+    // Размещаем фигуру по центру поля вверху
+    // COLS / 2 - центр по горизонтали
+    // currentPiece.template[0].length - ширина фигуры
+    // Вычитаем половину ширины, чтобы фигура была по центру
+    currentX = Math.floor(COLS / 2 - currentPiece.template[0].length / 2);
+    currentY = 0;  // Верхняя строка
+    
+    // Проверяем, можно ли разместить новую фигуру
+    // Если нельзя - игра заканчивается (поле переполнено)
     if (!canMove(currentPiece.template, currentX, currentY)) {
-        endGame();
+        endGame();  // Конец игры
     }
     
+    // Обновляем отображение следующей фигуры
     drawNextPiece();
+    
+    // Если это демо-режим, вычисляем лучший ход для ИИ
+    // Иначе aiTarget остаётся null (управляет человек)
     aiTarget = demoMode ? findBestMove() : null;
 }
 
+/**
+ * Обрабатывает нажатия клавиш для управления фигурой
+ * @param {KeyboardEvent} e - объект события нажатия клавиши
+ */
 function handleKeyPress(e) {
+    // Если игра не запущена или на паузе, не обрабатываем нажатия
     if (!gameRunning || gamePaused) return;
     
+    // switch - конструкция для выбора действия в зависимости от нажатой клавиши
     switch(e.key) {
-        case 'ArrowLeft':
+        case 'ArrowLeft':  // Стрелка влево
+            // Проверяем, можно ли сдвинуть фигуру влево, и если да - сдвигаем
             if (canMove(currentPiece.template, currentX - 1, currentY)) {
-                currentX--;
+                currentX--;  // Уменьшаем X (движение влево)
             }
             break;
-        case 'ArrowRight':
+            
+        case 'ArrowRight':  // Стрелка вправо
+            // Проверяем, можно ли сдвинуть фигуру вправо, и если да - сдвигаем
             if (canMove(currentPiece.template, currentX + 1, currentY)) {
-                currentX++;
+                currentX++;  // Увеличиваем X (движение вправо)
             }
             break;
-        case 'ArrowDown':
+            
+        case 'ArrowDown':  // Стрелка вниз (ускоренное падение)
+            // Проверяем, можно ли сдвинуть фигуру вниз, и если да - сдвигаем
             if (canMove(currentPiece.template, currentX, currentY + 1)) {
-                currentY++;
-                score += 1;
+                currentY++;  // Увеличиваем Y (движение вниз)
+                score += 1;   // Даём небольшой бонус за ускоренное падение
             }
             break;
-        case ' ':
-            e.preventDefault();
-            rotatePiece();
+            
+        case ' ':  // Пробел (поворот)
+            e.preventDefault();  // Предотвращаем прокрутку страницы при нажатии пробела
+            rotatePiece();        // Поворачиваем фигуру
             break;
     }
 }
 
+/**
+ * Поворачивает текущую фигуру на 90 градусов по часовой стрелке
+ * Поворот происходит только если фигура может быть размещена в новой ориентации
+ */
 function rotatePiece() {
+    // Получаем повёрнутую версию шаблона фигуры
     const rotated = rotateMatrix(currentPiece.template);
+    
+    // Проверяем, можно ли разместить повёрнутую фигуру в текущей позиции
     if (canMove(rotated, currentX, currentY)) {
+        // Если можно - заменяем шаблон на повёрнутый
         currentPiece.template = rotated;
     }
+    // Если нельзя повернуть (мешает стена или блоки) - ничего не делаем
 }
 
+/**
+ * Поворачивает матрицу (двумерный массив) на 90 градусов по часовой стрелке
+ * Используется для поворота фигур Тетриса
+ * @param {Array} matrix - исходная матрица (шаблон фигуры)
+ * @returns {Array} - повёрнутая матрица
+ * 
+ * Пример:
+ * Исходная:  [1, 1]      Повёрнутая: [0, 1]
+ *            [0, 1]                   [1, 1]
+ */
 function rotateMatrix(matrix) {
-    const n = matrix.length;
-    const m = matrix[0].length;
+    const n = matrix.length;        // Количество строк исходной матрицы
+    const m = matrix[0].length;     // Количество столбцов исходной матрицы
+    
+    // Создаём новую матрицу с перевёрнутыми размерами (m строк, n столбцов)
     const rotated = Array(m).fill().map(() => Array(n).fill(0));
     
-    for (let i = 0; i < n; i++) {
-        for (let j = 0; j < m; j++) {
+    // Проходим по всем элементам исходной матрицы
+    for (let i = 0; i < n; i++) {       // i - номер строки исходной
+        for (let j = 0; j < m; j++) {   // j - номер столбца исходной
+            // Формула поворота на 90° по часовой стрелке:
+            // Элемент [i][j] → позиция [j][n-1-i]
             rotated[j][n - 1 - i] = matrix[i][j];
         }
     }
@@ -357,61 +557,122 @@ function rotateMatrix(matrix) {
     return rotated;
 }
 
+/**
+ * Проверяет, можно ли разместить фигуру в заданной позиции
+ * @param {Array} piece - шаблон фигуры (двумерный массив)
+ * @param {number} x - позиция по горизонтали (столбец)
+ * @param {number} y - позиция по вертикали (строка)
+ * @returns {boolean} - true если можно разместить, false если нельзя
+ */
 function canMove(piece, x, y) {
+    // Проходим по всем клеткам фигуры
     for (let row = 0; row < piece.length; row++) {
         for (let col = 0; col < piece[row].length; col++) {
+            // Проверяем только клетки, где есть блок (значение 1)
             if (piece[row][col]) {
-                const newX = x + col;
-                const newY = y + row;
+                // Вычисляем абсолютную позицию этого блока на игровом поле
+                const newX = x + col;  // Позиция столбца
+                const newY = y + row;  // Позиция строки
                 
+                // Проверка 1: Выход за границы поля
+                // Если блок выходит за левую/правую границу или за нижнюю - нельзя
                 if (newX < 0 || newX >= COLS || newY >= ROWS) {
-                    return false;
+                    return false;  // Невозможно разместить
                 }
                 
+                // Проверка 2: Столкновение с уже установленными блоками
+                // Если на этой позиции уже есть блок (не 0) - нельзя
                 if (newY >= 0 && board[newY][newX]) {
-                    return false;
+                    return false;  // Невозможно разместить (пересечение)
                 }
             }
         }
     }
+    // Если все проверки пройдены - можно разместить
     return true;
 }
 
+/**
+ * Размещает текущую фигуру на игровом поле
+ * Вызывается когда фигура не может больше падать (достигла дна или других блоков)
+ * После размещения проверяет и очищает заполненные линии, затем создаёт новую фигуру
+ */
 function placePiece() {
+    // Проходим по всем блокам текущей фигуры
     for (let row = 0; row < currentPiece.template.length; row++) {
         for (let col = 0; col < currentPiece.template[row].length; col++) {
+            // Если в этой позиции есть блок фигуры
             if (currentPiece.template[row][col]) {
+                // Вычисляем абсолютные координаты на игровом поле
                 const x = currentX + col;
                 const y = currentY + row;
                 
+                // Размещаем блок только если он в пределах поля (y >= 0)
+                // (верхние блоки, которые за пределами, игнорируем)
                 if (y >= 0) {
+                    // Записываем цвет фигуры в игровое поле
+                    // colorIndex + 1, потому что 0 = пустая клетка
                     board[y][x] = currentPiece.colorIndex + 1;
                 }
             }
         }
     }
     
+    // Проверяем и очищаем заполненные линии
     clearLines();
+    
+    // Создаём новую фигуру для продолжения игры
     spawnNewPiece();
 }
 
+/**
+ * Проверяет и очищает полностью заполненные линии
+ * Удаляет заполненные линии и сдвигает всё вниз
+ * Начисляет очки и увеличивает уровень при очистке линий
+ */
 function clearLines() {
-    let clearedLines = 0;
+    let clearedLines = 0;  // Счётчик очищенных линий
     
+    // Проходим по всем строкам снизу вверх (от ROWS-1 до 0)
+    // Снизу вверх, чтобы правильно сдвигать блоки после удаления строки
     for (let row = ROWS - 1; row >= 0; row--) {
+        // Проверяем, заполнена ли вся строка
+        // every() возвращает true если все элементы удовлетворяют условию
+        // cell !== 0 означает "не пустая клетка"
         if (board[row].every(cell => cell !== 0)) {
+            // Удаляем заполненную строку
+            // splice(row, 1) - удаляет 1 элемент начиная с позиции row
             board.splice(row, 1);
+            
+            // Добавляем новую пустую строку в начало массива
+            // unshift() добавляет элемент в начало массива
             board.unshift(Array(COLS).fill(0));
-            clearedLines++;
-            row++;
+            
+            clearedLines++;  // Увеличиваем счётчик
+            row++;           // Не уменьшаем row, т.к. строки сдвинулись вниз
         }
     }
     
+    // Если были очищены линии, обновляем статистику
     if (clearedLines > 0) {
+        // Обновляем количество очищенных линий
         lines += clearedLines;
+        
+        // Начисляем очки: квадрат количества линий × 100
+        // 1 линия = 100, 2 линии = 400, 3 линии = 900, 4 линии = 1600
         score += clearedLines * clearedLines * 100;
+        
+        // Уровень увеличивается каждые 10 очищенных линий
+        // Math.floor() - округление вниз (1.9 → 1)
         level = Math.floor(lines / 10) + 1;
+        
+        // Увеличиваем скорость с уровнем
+        // Базовая скорость уменьшается на 50 мс за уровень
+        // Минимум 100 мс между падениями
         baseDropSpeed = Math.max(100, 1000 - (level - 1) * 50);
+        
+        // Применяем текущий множитель скорости
+        // Минимум 50 мс (очень быстро)
         dropSpeed = Math.max(50, baseDropSpeed / speedMultiplier);
     }
 }
@@ -510,29 +771,51 @@ function learnFromGame(finalScore, finalLines) {
     aiWeights.bumpiness = Math.max(100, Math.min(200, aiWeights.bumpiness));
 }
 
+/**
+ * Главный игровой цикл - вызывается постоянно для обновления игры
+ * Это сердце игры - функция вызывается ~60 раз в секунду
+ * requestAnimationFrame обеспечивает плавную анимацию
+ */
 function gameLoop() {
+    // Если игра не запущена, прекращаем цикл
     if (!gameRunning) return;
     
+    // Выполняем игровую логику только если игра не на паузе
     if (!gamePaused) {
-        const now = Date.now();
+        const now = Date.now();  // Получаем текущее время в миллисекундах
         
+        // Если включён демо-режим (бот играет)
+        // Проверяем, прошло ли достаточно времени с последнего движения бота
         if (demoMode && now - lastMoveTime > MOVE_DELAY) {
-            makeDemoMove();
-            lastMoveTime = now;
+            makeDemoMove();        // Делаем ход бота
+            lastMoveTime = now;    // Обновляем время последнего движения
         }
         
+        // Проверяем, пора ли фигуре упасть вниз
+        // Сравниваем разницу времени с установленной скоростью падения
         if (now - lastDropTime > dropSpeed) {
+            // Пытаемся сдвинуть фигуру вниз
             if (canMove(currentPiece.template, currentX, currentY + 1)) {
+                // Если можно - сдвигаем вниз
                 currentY++;
             } else {
+                // Если нельзя - фигура достигла дна или блоков
+                // Размещаем её на поле и создаём новую
                 placePiece();
             }
-            lastDropTime = now;
+            lastDropTime = now;  // Обновляем время последнего падения
         }
     }
     
+    // Обновляем отображение статистики (очки, линии, уровень)
     updateUI();
+    
+    // Перерисовываем игровое поле
     draw();
+    
+    // Запрашиваем следующий кадр анимации
+    // Это создаёт бесконечный цикл: gameLoop → requestAnimationFrame → gameLoop → ...
+    // Браузер автоматически оптимизирует частоту вызовов (~60 FPS)
     requestAnimationFrame(gameLoop);
 }
 

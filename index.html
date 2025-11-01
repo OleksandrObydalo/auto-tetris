@@ -1,30 +1,45 @@
 <!DOCTYPE html>
+<!-- 
+    HTML файл - структура страницы игры Тетрис
+    DOCTYPE - указывает браузеру, что это HTML5 документ
+-->
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Тетрис</title>
-    <link rel="stylesheet" href="styles.css">
+    <!-- Мета-теги для корректной работы страницы -->
+    <meta charset="UTF-8">  <!-- Кодировка символов (поддержка русского языка) -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">  <!-- Настройка для мобильных устройств -->
+    <title>Тетрис</title>  <!-- Заголовок вкладки браузера -->
+    <link rel="stylesheet" href="styles.css">  <!-- Подключаем файл стилей CSS -->
 </head>
 <body>
+    <!-- Основной контейнер страницы -->
     <div class="container">
+        <!-- Обёртка для игровой области -->
         <div class="game-wrapper">
+            <!-- Боковая панель с управлением и статистикой -->
             <div class="sidebar">
-                <h1>Тетрис</h1>
+                <h1>Тетрис</h1>  <!-- Заголовок игры -->
+                
+                <!-- Блок статистики: очки, линии, уровень -->
                 <div class="stats">
+                    <!-- Статистика очков: id="score" - используется в JavaScript для обновления -->
                     <div class="stat">
                         <span class="label">Очки:</span>
                         <span class="value" id="score">0</span>
                     </div>
+                    <!-- Статистика линий: id="lines" - используется в JavaScript -->
                     <div class="stat">
                         <span class="label">Линии:</span>
                         <span class="value" id="lines">0</span>
                     </div>
+                    <!-- Статистика уровня: id="level" - используется в JavaScript -->
                     <div class="stat">
                         <span class="label">Уровень:</span>
                         <span class="value" id="level">1</span>
                     </div>
                 </div>
+                
+                <!-- Статистика тренировки (скрыта по умолчанию, показывается в режиме тренировки) -->
                 <div class="training-stats" id="trainingStats" style="display: none;">
                     <div class="settings-title">Статистика тренировки</div>
                     <div class="stat">
@@ -44,40 +59,65 @@
                         <span class="value" id="trainingLines">0</span>
                     </div>
                 </div>
+                <!-- Блок предпросмотра следующей фигуры -->
                 <div class="next-piece">
                     <div class="label">Следующая:</div>
+                    <!-- Canvas - элемент для рисования следующей фигуры -->
+                    <!-- width и height задают размеры в пикселях -->
                     <canvas id="nextCanvas" width="120" height="120"></canvas>
                 </div>
+                
+                <!-- Кнопки управления игрой -->
+                <!-- disabled - кнопка неактивна (нельзя нажать) -->
                 <button id="startBtn" class="btn">Начать</button>
                 <button id="pauseBtn" class="btn" disabled>Пауза</button>
                 <button id="stopBtn" class="btn" disabled>Остановить</button>
                 <button id="demoBtn" class="btn">Демо</button>
                 <button id="trainingBtn" class="btn btn-training">Тренировка</button>
+                
+                <!-- Блок настроек игры -->
                 <div class="settings">
                     <div class="settings-title">Настройки</div>
+                    <!-- Настройка ширины игрового поля -->
                     <div class="setting-item">
                         <label for="widthInput">Ширина:</label>
+                        <!-- type="number" - поле для ввода числа -->
+                        <!-- min/max - минимальное и максимальное значение -->
+                        <!-- disabled - отключено во время игры -->
                         <input type="number" id="widthInput" min="6" max="20" value="10" disabled>
                     </div>
+                    <!-- Настройка высоты игрового поля -->
                     <div class="setting-item">
                         <label for="heightInput">Высота:</label>
                         <input type="number" id="heightInput" min="10" max="40" value="20" disabled>
                     </div>
+                    <!-- Настройка скорости игры -->
                     <div class="setting-item">
                         <label for="speedInput">Скорость:</label>
+                        <!-- type="range" - слайдер (ползунок) -->
+                        <!-- step="0.25" - шаг изменения (0.25, 0.5, 0.75, 1.0, ...) -->
                         <input type="range" id="speedInput" min="0.25" max="3" step="0.25" value="1" disabled>
+                        <!-- Отображение текущего значения скорости -->
                         <span id="speedValue">1.0x</span>
                     </div>
                 </div>
+                
+                <!-- Подсказки по управлению (для пользователя) -->
                 <div class="controls">
                     <div class="control">← → Движение</div>
                     <div class="control">↓ Вниз</div>
                     <div class="control">SPACE Поворот</div>
                 </div>
             </div>
+            
+            <!-- Основное игровое поле - здесь рисуется Тетрис -->
+            <!-- Размеры canvas задаются динамически через JavaScript -->
             <canvas id="gameCanvas"></canvas>
         </div>
     </div>
+    
+    <!-- Подключаем JavaScript файл с логикой игры -->
+    <!-- Скрипт выполняется после загрузки HTML -->
     <script src="game.js"></script>
 </body>
 </html>

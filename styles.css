@@ -1,31 +1,47 @@
+/* 
+    CSS файл - стили для игры Тетрис
+    CSS (Cascading Style Sheets) - язык для описания внешнего вида страницы
+*/
+
+/* 
+    Универсальный селектор * применяется ко всем элементам
+    Сбрасываем стандартные отступы браузера для единообразия
+*/
 * {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
+    margin: 0;      /* Внешние отступы = 0 */
+    padding: 0;     /* Внутренние отступы = 0 */
+    box-sizing: border-box;  /* Размер включает padding и border */
 }
 
+/* 
+    Стили для body (всё тело страницы)
+    body - основной контейнер HTML страницы
+*/
 body {
-    font-family: 'Noto Sans', sans-serif;
-    background: #f5f5f5;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 100vh;
-    padding: 20px;
+    font-family: 'Noto Sans', sans-serif;  /* Шрифт текста */
+    background: #f5f5f5;                   /* Цвет фона (светло-серый) */
+    display: flex;                          /* Flexbox - современная система выравнивания */
+    justify-content: center;                /* Выравнивание по горизонтали (центр) */
+    align-items: center;                    /* Выравнивание по вертикали (центр) */
+    min-height: 100vh;                      /* Минимальная высота = 100% высоты экрана */
+    padding: 20px;                          /* Внутренние отступы 20 пикселей */
 }
 
+/* Основной контейнер страницы */
 .container {
-    width: 100%;
-    max-width: 600px;
+    width: 100%;        /* Ширина = 100% родителя */
+    max-width: 600px;   /* Максимальная ширина 600px (на больших экранах) */
 }
 
+/* Обёртка для игровой области */
 .game-wrapper {
-    display: flex;
-    gap: 30px;
-    background: white;
-    padding: 30px;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    display: flex;                              /* Flexbox для расположения элементов */
+    gap: 30px;                                  /* Расстояние между элементами 30px */
+    background: white;                          /* Белый фон */
+    padding: 30px;                              /* Внутренние отступы */
+    border-radius: 8px;                         /* Скруглённые углы (8px радиус) */
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);  /* Тень для объёма */
+    /* rgba(0,0,0,0.1) = чёрный цвет с прозрачностью 10% */
 }
 
 .sidebar {
